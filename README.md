@@ -54,3 +54,6 @@ npm run android
 - The Android manifest opts out of predictive back for compatibility with the navigation stack
 - Mock auth credentials: `admin@test.com` / `123456`
 - Successful login stores a secure session with `react-native-encrypted-storage`
+- Camera recording uses `react-native-vision-camera`
+- Android requires `android.permission.CAMERA`
+- Recordings stop automatically at 60 seconds and return a local file path

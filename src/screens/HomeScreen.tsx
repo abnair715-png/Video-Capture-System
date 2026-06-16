@@ -1,9 +1,11 @@
-import { Pressable, StyleSheet, Text } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../components';
+import { ROUTES } from '../constants/routes';
 import { useAuth } from '../config/auth';
 import { appTheme } from '../config/theme';
+import type { AppScreenProps } from '../types/navigation';
 
-export function HomeScreen() {
+export function HomeScreen({ navigation }: AppScreenProps<'Home'>) {
   const { session, logout } = useAuth();
 
   return (
@@ -11,9 +13,21 @@ export function HomeScreen() {
       title="Home"
       description={`Welcome${session ? `, ${session.workerId}` : ''}. This is the authenticated landing screen.`}>
       <Text style={styles.sessionText}>Email: {session?.email}</Text>
-      <Pressable style={styles.logoutButton} onPress={logout}>
-        <Text style={styles.logoutText}>Logout</Text>
-      </Pressable>
+      <View style={styles.actions}>
+        <Pressable
+          style={styles.primaryButton}
+          onPress={() => navigation.navigate(ROUTES.CAMERA)}>
+          <Text style={styles.primaryButtonText}>Open Camera</Text>
+        </Pressable>
+        <Pressable
+          style={styles.secondaryButton}
+          onPress={() => navigation.navigate(ROUTES.DASHBOARD)}>
+          <Text style={styles.secondaryButtonText}>Open Dashboard</Text>
+        </Pressable>
+        <Pressable style={styles.logoutButton} onPress={logout}>
+          <Text style={styles.logoutText}>Logout</Text>
+        </Pressable>
+      </View>
     </AppScreen>
   );
 }
@@ -23,6 +37,35 @@ const styles = StyleSheet.create({
     color: appTheme.colors.mutedText,
     fontSize: 14,
     marginBottom: 16,
+  },
+  actions: {
+    gap: 12,
+  },
+  primaryButton: {
+    backgroundColor: appTheme.colors.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  primaryButtonText: {
+    color: '#0F172A',
+    fontSize: 16,
+    fontWeight: '700',
+  },
+  secondaryButton: {
+    backgroundColor: appTheme.colors.surface,
+    borderWidth: 1,
+    borderColor: appTheme.colors.border,
+    borderRadius: 12,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: appTheme.colors.text,
+    fontSize: 16,
+    fontWeight: '600',
   },
   logoutButton: {
     backgroundColor: '#FCA5A5',

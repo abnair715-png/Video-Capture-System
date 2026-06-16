@@ -59,6 +59,7 @@ jest.mock('@react-navigation/native', () => {
   return {
     NavigationContainer: ({ children }) =>
       React.createElement(View, null, children),
+    useIsFocused: () => true,
     DefaultTheme: {
       colors: {
         background: '#000000',
@@ -129,5 +130,42 @@ jest.mock('react-native-quick-sqlite', () => {
   return {
     open: jest.fn(() => connection),
     QuickSQLite: connection,
+  };
+});
+
+jest.mock('react-native-vision-camera', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  const Camera = ({ children }) => React.createElement(View, null, children);
+
+  return {
+    Camera,
+    useCameraPermission: () => ({
+      hasPermission: true,
+      canRequestPermission: false,
+      status: 'authorized',
+      requestPermission: jest.fn(async () => true),
+    }),
+    useCameraDevice: () => ({ id: 'mock-device' }),
+    useVideoOutput: () => ({
+      createRecorder: jest.fn(async () => ({
+        isRecording: true,
+        isPaused: false,
+        recordedDuration: 0,
+        recordedFileSize: 0,
+        filePath: '/tmp/mock-video.mp4',
+        startRecording: jest.fn(async (onFinished) => {
+          onFinished('/tmp/mock-video.mp4', 'stopped');
+        }),
+        stopRecording: jest.fn(async () => undefined),
+        pauseRecording: jest.fn(async () => undefined),
+        resumeRecording: jest.fn(async () => undefined),
+        cancelRecording: jest.fn(async () => undefined),
+      })),
+    }),
+    CommonResolutions: {
+      FHD_16_9: { width: 1080, height: 1920 },
+    },
   };
 });
