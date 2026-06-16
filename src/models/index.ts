@@ -3,3 +3,5 @@ export type User = {
   name: string;
   email: string;
 };
+
+export * from './video';

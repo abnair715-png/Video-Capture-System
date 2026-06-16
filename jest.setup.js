@@ -86,3 +86,48 @@ jest.mock('@react-navigation/native-stack', () => {
     }),
   };
 });
+
+jest.mock('react-native-quick-sqlite', () => {
+  const createRows = rows => ({
+    _array: rows,
+    length: rows.length,
+    item: index => rows[index],
+  });
+
+  const createResult = rows => ({
+    rowsAffected: 0,
+    rows: createRows(rows),
+  });
+
+  const connection = {
+    executeAsync: jest.fn(async query => {
+      if (String(query).includes('COUNT(*)')) {
+        return createResult([{ count: 0 }]);
+      }
+
+      return createResult([]);
+    }),
+    executeBatchAsync: jest.fn(async () => ({ rowsAffected: 0 })),
+    execute: jest.fn(() => createResult([])),
+    executeBatch: jest.fn(() => ({ rowsAffected: 0 })),
+    transaction: jest.fn(async fn => {
+      await fn({
+        commit: jest.fn(() => createResult([])),
+        rollback: jest.fn(() => createResult([])),
+        execute: jest.fn(() => createResult([])),
+        executeAsync: jest.fn(async () => createResult([])),
+      });
+    }),
+    close: jest.fn(),
+    delete: jest.fn(),
+    attach: jest.fn(),
+    detach: jest.fn(),
+    loadFile: jest.fn(() => ({ rowsAffected: 0 })),
+    loadFileAsync: jest.fn(async () => ({ rowsAffected: 0 })),
+  };
+
+  return {
+    open: jest.fn(() => connection),
+    QuickSQLite: connection,
+  };
+});
