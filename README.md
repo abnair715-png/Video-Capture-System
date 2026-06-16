@@ -52,3 +52,5 @@ npm run android
 - `react-native-gesture-handler` is loaded from `index.js`
 - `react-native-screens` is enabled in `src/App.tsx`
 - The Android manifest opts out of predictive back for compatibility with the navigation stack
+- Mock auth credentials: `admin@test.com` / `123456`
+- Successful login stores a secure session with `react-native-encrypted-storage`

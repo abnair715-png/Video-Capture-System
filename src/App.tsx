@@ -4,6 +4,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { enableScreens } from 'react-native-screens';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './config/navigation';
+import { AuthProvider } from './config/auth';
 import { appTheme } from './config/theme';
 
 enableScreens(true);
@@ -28,9 +29,11 @@ function App() {
           barStyle="light-content"
           backgroundColor={appTheme.colors.background}
         />
-        <NavigationContainer theme={navigationTheme}>
-          <AppNavigator />
-        </NavigationContainer>
+        <AuthProvider>
+          <NavigationContainer theme={navigationTheme}>
+            <AppNavigator />
+          </NavigationContainer>
+        </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
