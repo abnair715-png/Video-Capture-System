@@ -8,6 +8,7 @@ export const MAX_RECORDING_DURATION_SECONDS = 60;
 
 export type CameraRecordingSession = {
   videoId: string;
+  startedAt: string;
   recorder: Recorder;
   filePathPromise: Promise<string>;
   stop: () => Promise<string>;
@@ -67,6 +68,7 @@ export async function startRecording(
   videoOutput: CameraVideoOutput,
 ): Promise<CameraRecordingSession> {
   const videoId = createVideoId();
+  const startedAt = new Date().toISOString();
   const recorder = await videoOutput.createRecorder({
     maxDuration: MAX_RECORDING_DURATION_SECONDS,
   });
@@ -88,6 +90,7 @@ export async function startRecording(
 
   return {
     videoId,
+    startedAt,
     recorder,
     filePathPromise,
     stop: async () => {

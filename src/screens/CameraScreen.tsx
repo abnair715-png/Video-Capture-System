@@ -7,7 +7,13 @@ import {
   View,
 } from 'react-native';
 import { useIsFocused } from '@react-navigation/native';
-import { Camera, useCameraDevice, useCameraPermission, useVideoOutput } from 'react-native-vision-camera';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+  useVideoOutput,
+} from 'react-native-vision-camera';
+import { useAuth } from '../config/auth';
 import { appTheme } from '../config/theme';
 import {
   MAX_RECORDING_DURATION_SECONDS,
@@ -15,10 +21,15 @@ import {
   stopRecording,
   type CameraRecordingSession,
 } from '../services/cameraService';
+import {
+  captureBatteryLevelSnapshot,
+  captureRecordingMetadata,
+} from '../services/metadataService';
 import type { CameraLens } from '../types/camera';
 
 export function CameraScreen() {
   const isFocused = useIsFocused();
+  const { session: authSession } = useAuth();
   const [lens, setLens] = useState<CameraLens>('back');
   const [recordingSession, setRecordingSession] =
     useState<CameraRecordingSession | null>(null);
@@ -34,6 +45,9 @@ export function CameraScreen() {
     enableAudio: false,
   });
   const sessionRef = useRef<CameraRecordingSession | null>(null);
+  const recordingContextRef = useRef<{
+    batteryStart: number | null;
+  } | null>(null);
 
   const isRecording = recordingSession != null;
 
@@ -93,14 +107,32 @@ export function CameraScreen() {
     setIsStarting(true);
 
     try {
+      if (!authSession) {
+        throw new Error('You must be logged in to record a video.');
+      }
+
+      const batteryStart = await captureBatteryLevelSnapshot();
       const session = await startRecording(videoOutput);
       sessionRef.current = session;
       setRecordingSession(session);
       setCurrentVideoId(session.videoId);
+      recordingContextRef.current = {
+        batteryStart,
+      };
 
       session.filePathPromise
-        .then(filePath => {
+        .then(async filePath => {
           setRecordedFilePath(filePath);
+
+          await captureRecordingMetadata({
+            videoId: session.videoId,
+            workerId: authSession.workerId,
+            startedAt: session.startedAt,
+            endedAt: new Date().toISOString(),
+            localPath: filePath,
+            cameraDevice: device,
+            batteryStart: recordingContextRef.current?.batteryStart ?? null,
+          });
         })
         .catch(error => {
           setRecordingError(
@@ -108,6 +140,7 @@ export function CameraScreen() {
           );
         })
         .finally(() => {
+          recordingContextRef.current = null;
           sessionRef.current = null;
           setRecordingSession(null);
           setElapsedSeconds(0);

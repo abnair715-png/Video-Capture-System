@@ -52,6 +52,59 @@ jest.mock('react-native-encrypted-storage', () => {
   };
 });
 
+jest.mock('react-native-device-info', () => ({
+  __esModule: true,
+  default: {
+    getModel: jest.fn(() => 'Pixel 8'),
+    getSystemVersion: jest.fn(() => '14'),
+    getBatteryLevel: jest.fn(async () => 0.75),
+  },
+}));
+
+jest.mock('react-native-fs', () => ({
+  stat: jest.fn(async filepath => ({
+    path: filepath,
+    size: 123456,
+    name: 'mock-video.mp4',
+    mode: 0,
+    ctime: 0,
+    mtime: 0,
+    originalFilepath: filepath,
+    isFile: () => true,
+    isDirectory: () => false,
+  })),
+}));
+
+jest.mock('@react-native-community/netinfo', () => ({
+  __esModule: true,
+  default: {
+    fetch: jest.fn(async () => ({
+      type: 'wifi',
+      isConnected: true,
+      isInternetReachable: true,
+      details: null,
+    })),
+  },
+}));
+
+jest.mock('react-native-geolocation-service', () => ({
+  __esModule: true,
+  default: {
+    getCurrentPosition: jest.fn((success, error) => {
+      if (typeof success === 'function') {
+        success({
+          coords: {
+            latitude: 12.9716,
+            longitude: 77.5946,
+          },
+        });
+      } else if (typeof error === 'function') {
+        error({ code: 1, message: 'No callback provided' });
+      }
+    }),
+  },
+}));
+
 jest.mock('@react-navigation/native', () => {
   const React = require('react');
   const { View } = require('react-native');
