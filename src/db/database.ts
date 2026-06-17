@@ -119,11 +119,15 @@ function rowsToVideos(rows?: { _array: unknown[] }) {
     return [];
   }
 
-  return rows._array.map(item => mapRowToVideo(item as Record<string, unknown>));
+  return rows._array.map(item =>
+    mapRowToVideo(item as Record<string, unknown>),
+  );
 }
 
 function buildUpdateStatement(videoId: string, updates: VideoUpdateInput) {
-  const entries = Object.entries(updates).filter(([, value]) => value !== undefined);
+  const entries = Object.entries(updates).filter(
+    ([, value]) => value !== undefined,
+  );
 
   if (entries.length === 0) {
     throw new Error('At least one video field must be provided for update.');
@@ -173,10 +177,7 @@ export async function insertVideo(video: VideoRecord) {
   );
 }
 
-export async function updateVideo(
-  videoId: string,
-  updates: VideoUpdateInput,
-) {
+export async function updateVideo(videoId: string, updates: VideoUpdateInput) {
   await ensureDatabaseReady();
 
   const statement = buildUpdateStatement(videoId, updates);
@@ -203,6 +204,32 @@ export async function getFailedVideos() {
   );
 
   return rowsToVideos(result.rows);
+}
+// This is Temprory for debug the database logs ----
+export async function getAllVideos() {
+  await ensureDatabaseReady();
+
+  const result = await getConnection().executeAsync(
+    `SELECT * FROM ${TABLE_NAME} ORDER BY started_at DESC`,
+  );
+  const videos = rowsToVideos(result.rows);
+
+  console.log('[SQLite Debug] All videos:', videos);
+
+  return videos;
+}
+
+export async function getVideoCount() {
+  await ensureDatabaseReady();
+
+  const result = await getConnection().executeAsync(
+    `SELECT COUNT(*) AS count FROM ${TABLE_NAME}`,
+  );
+  const count = Number(result.rows?._array?.[0]?.count ?? 0);
+
+  console.log('[SQLite Debug] Video count:', count);
+
+  return count;
 }
 
 export async function getVideosPaginated(

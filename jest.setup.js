@@ -73,6 +73,7 @@ jest.mock('react-native-fs', () => ({
     isFile: () => true,
     isDirectory: () => false,
   })),
+  unlink: jest.fn(async () => undefined),
 }));
 
 jest.mock('@react-native-community/netinfo', () => ({
@@ -138,6 +139,42 @@ jest.mock('@react-navigation/native-stack', () => {
       Navigator,
       Screen,
     }),
+  };
+});
+
+jest.mock('react-native/Libraries/Lists/FlatList', () => {
+  const React = require('react');
+  const { View } = require('react-native');
+
+  const FlatListMock = ({
+    data = [],
+    renderItem,
+    ListEmptyComponent,
+    ListFooterComponent,
+  }) =>
+    React.createElement(
+      View,
+      null,
+      data.length > 0
+        ? data.map((item, index) => {
+            if (!renderItem) {
+              return null;
+            }
+
+            const element = renderItem({ item, index });
+            return React.isValidElement(element)
+              ? React.cloneElement(element, {
+                  key: item?.video_id ?? index,
+                })
+              : element;
+          })
+        : ListEmptyComponent ?? null,
+      ListFooterComponent ?? null,
+    );
+
+  return {
+    __esModule: true,
+    default: FlatListMock,
   };
 });
 
