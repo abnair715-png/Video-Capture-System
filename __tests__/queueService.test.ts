@@ -98,29 +98,37 @@ describe('queueService', () => {
         last_error: 'Recovered after app restart',
       }),
     );
-    expect(database.updateVideo).toHaveBeenCalledWith(
-      'video_pending',
-      expect.objectContaining({
-        upload_state: 'uploading',
-      }),
-    );
-    expect(database.updateVideo).toHaveBeenCalledWith(
-      'video_pending',
-      expect.objectContaining({
-        upload_state: 'uploaded',
-      }),
-    );
-    expect(processor).toHaveBeenCalledWith(
-      expect.objectContaining({
-        video_id: 'video_pending',
-        upload_state: 'uploading',
-      }),
-    );
+    expect(processor).toHaveBeenCalledWith(samplePendingVideo);
     expect(result).toEqual({
       processed: 1,
       uploaded: 1,
       failed: 0,
       recovered: 1,
+    });
+  });
+
+  it('skips pending videos until their retry delay has elapsed', async () => {
+    const database = require('../src/db/database');
+    const { processQueue } = require('../src/services/queueService');
+
+    database.getUploadingVideos.mockResolvedValue([]);
+    database.getPendingVideos.mockResolvedValue([
+      {
+        ...samplePendingVideo,
+        attempt_count: 1,
+        last_attempted_at: new Date(Date.now() - 1000).toISOString(),
+      },
+    ]);
+
+    const processor = jest.fn(async () => undefined);
+    const result = await processQueue(processor);
+
+    expect(processor).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      processed: 0,
+      uploaded: 0,
+      failed: 0,
+      recovered: 0,
     });
   });
 

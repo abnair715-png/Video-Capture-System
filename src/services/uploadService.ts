@@ -7,6 +7,9 @@ import {
   retryFailedUploads as retryQueueFailedUploads,
   type QueueProcessResult,
 } from './queueService';
+import {
+  shouldMarkFailedAfterAttempt,
+} from './retryPolicy';
 
 type PresignedUrlResponse = {
   presignedUrl: string;
@@ -121,15 +124,38 @@ async function markUploadSuccess(
   });
 }
 
-async function markUploadFailure(videoId: string, error: unknown) {
+async function markRetryState(video: VideoRecord, error: unknown) {
   const message =
     error instanceof Error ? error.message : 'Upload failed unexpectedly.';
+  const lastAttemptedAt = new Date().toISOString();
 
-  await updateVideo(videoId, {
-    upload_state: 'failed',
-    last_attempted_at: new Date().toISOString(),
+  if (shouldMarkFailedAfterAttempt(video.attempt_count)) {
+    await updateVideo(video.video_id, {
+      upload_state: 'failed',
+      last_attempted_at: lastAttemptedAt,
+      last_error: message,
+    });
+
+    return {
+      ...video,
+      upload_state: 'failed',
+      last_attempted_at: lastAttemptedAt,
+      last_error: message,
+    };
+  }
+
+  await updateVideo(video.video_id, {
+    upload_state: 'pending',
+    last_attempted_at: lastAttemptedAt,
     last_error: message,
   });
+
+  return {
+    ...video,
+    upload_state: 'pending',
+    last_attempted_at: lastAttemptedAt,
+    last_error: message,
+  };
 }
 
 async function uploadFileToPresignedUrl(
@@ -191,21 +217,22 @@ export async function uploadVideo(video: VideoRecord) {
   try {
     return await performUploadVideo(video);
   } catch (error) {
-    await markUploadFailure(video.video_id, error);
+    const latestVideo = (await getVideoById(video.video_id)) ?? video;
+    await markRetryState(latestVideo, error);
     throw error;
   }
 }
 
+const queueUploadProcessor = async (video: VideoRecord) => {
+  await uploadVideo(video);
+};
+
 export async function processUploadQueue(): Promise<QueueProcessResult> {
-  return processUploadQueueWithProcessor(async video => {
-    await performUploadVideo(video);
-  });
+  return processUploadQueueWithProcessor(queueUploadProcessor);
 }
 
 export async function retryFailedUploadsThroughUploadService(): Promise<QueueProcessResult> {
-  return retryQueueFailedUploads(async video => {
-    await performUploadVideo(video);
-  });
+  return retryQueueFailedUploads(queueUploadProcessor);
 }
 
 export async function generatePresignedUrlForVideo(video: VideoRecord) {

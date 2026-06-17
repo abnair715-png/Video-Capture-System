@@ -6,8 +6,13 @@ import {
   updateVideo,
 } from '../db/database';
 import type { VideoRecord } from '../models/video';
+import { isVideoRetryDue } from './retryPolicy';
 
 export type QueueProcessor = (video: VideoRecord) => Promise<void>;
+
+export type QueueProcessOptions = {
+  force?: boolean;
+};
 
 export type QueueProcessResult = {
   processed: number;
@@ -22,53 +27,6 @@ function createTimestamp() {
   return new Date().toISOString();
 }
 
-async function markVideoState(
-  videoId: string,
-  uploadState: VideoRecord['upload_state'],
-  extraUpdates: Partial<VideoRecord> = {},
-) {
-  await updateVideo(videoId, {
-    upload_state: uploadState,
-    ...extraUpdates,
-  });
-}
-
-async function claimForUpload(video: VideoRecord) {
-  const nextAttemptCount = video.attempt_count + 1;
-  const timestamp = createTimestamp();
-
-  await markVideoState(video.video_id, 'uploading', {
-    attempt_count: nextAttemptCount,
-    last_attempted_at: timestamp,
-    last_error: '',
-  });
-
-  return {
-    ...video,
-    upload_state: 'uploading',
-    attempt_count: nextAttemptCount,
-    last_attempted_at: timestamp,
-    last_error: '',
-  };
-}
-
-async function finishUpload(video: VideoRecord) {
-  await markVideoState(video.video_id, 'uploaded', {
-    last_attempted_at: createTimestamp(),
-    last_error: '',
-  });
-}
-
-async function failUpload(video: VideoRecord, error: unknown) {
-  const message =
-    error instanceof Error ? error.message : 'Upload failed unexpectedly.';
-
-  await markVideoState(video.video_id, 'failed', {
-    last_attempted_at: createTimestamp(),
-    last_error: message,
-  });
-}
-
 async function recoverInProgressUploads() {
   const uploadingVideos = await getUploadingVideos();
 
@@ -78,7 +36,8 @@ async function recoverInProgressUploads() {
 
   await Promise.all(
     uploadingVideos.map(video =>
-      markVideoState(video.video_id, 'pending', {
+      updateVideo(video.video_id, {
+        upload_state: 'pending',
         last_error: 'Recovered after app restart',
       }),
     ),
@@ -98,13 +57,15 @@ export async function enqueueVideo(videoId: string) {
     return video;
   }
 
-  if (video.upload_state === 'failed') {
-    const timestamp = createTimestamp();
+  const timestamp = createTimestamp();
 
-    await markVideoState(video.video_id, 'pending', {
+  if (video.upload_state === 'failed' || video.upload_state === 'uploading') {
+    await updateVideo(video.video_id, {
+      upload_state: 'pending',
       last_error: '',
       last_attempted_at: timestamp,
     });
+
     return {
       ...video,
       upload_state: 'pending',
@@ -113,13 +74,8 @@ export async function enqueueVideo(videoId: string) {
     };
   }
 
-  if (video.upload_state === 'uploading') {
-    return video;
-  }
-
-  const timestamp = createTimestamp();
-
-  await markVideoState(video.video_id, 'pending', {
+  await updateVideo(video.video_id, {
+    upload_state: 'pending',
     last_error: '',
     last_attempted_at: timestamp,
   });
@@ -134,6 +90,7 @@ export async function enqueueVideo(videoId: string) {
 
 export async function processQueue(
   processor: QueueProcessor,
+  options: QueueProcessOptions = {},
 ): Promise<QueueProcessResult> {
   if (activeQueueRun) {
     return activeQueueRun;
@@ -142,21 +99,21 @@ export async function processQueue(
   activeQueueRun = (async () => {
     const recovered = await recoverInProgressUploads();
     const pendingVideos = await getPendingVideos();
+    const dueVideos = options.force
+      ? pendingVideos
+      : pendingVideos.filter(video => isVideoRetryDue(video));
 
     let processed = 0;
     let uploaded = 0;
     let failed = 0;
 
-    for (const pendingVideo of pendingVideos) {
-      const claimedVideo = await claimForUpload(pendingVideo);
+    for (const pendingVideo of dueVideos) {
       processed += 1;
 
       try {
-        await processor(claimedVideo);
-        await finishUpload(claimedVideo);
+        await processor(pendingVideo);
         uploaded += 1;
-      } catch (error) {
-        await failUpload(claimedVideo, error);
+      } catch {
         failed += 1;
       }
     }
@@ -183,12 +140,13 @@ export async function retryFailedUploads(
 
   await Promise.all(
     failedVideos.map(video =>
-      markVideoState(video.video_id, 'pending', {
+      updateVideo(video.video_id, {
+        upload_state: 'pending',
         last_error: '',
         last_attempted_at: createTimestamp(),
       }),
     ),
   );
 
-  return processQueue(processor);
+  return processQueue(processor, { force: true });
 }
