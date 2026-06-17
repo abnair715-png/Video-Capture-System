@@ -205,6 +205,28 @@ export async function getFailedVideos() {
 
   return rowsToVideos(result.rows);
 }
+
+export async function getUploadingVideos() {
+  await ensureDatabaseReady();
+
+  const result = await getConnection().executeAsync(
+    `SELECT * FROM ${TABLE_NAME} WHERE upload_state = ? ORDER BY started_at DESC`,
+    ['uploading'],
+  );
+
+  return rowsToVideos(result.rows);
+}
+
+export async function getVideoById(videoId: string) {
+  await ensureDatabaseReady();
+
+  const result = await getConnection().executeAsync(
+    `SELECT * FROM ${TABLE_NAME} WHERE video_id = ? LIMIT 1`,
+    [videoId],
+  );
+
+  return rowsToVideos(result.rows)[0] ?? null;
+}
 // This is Temprory for debug the database logs ----
 export async function getAllVideos() {
   await ensureDatabaseReady();
