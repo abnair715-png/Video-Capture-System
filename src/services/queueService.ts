@@ -12,6 +12,7 @@ export type QueueProcessor = (video: VideoRecord) => Promise<void>;
 
 export type QueueProcessOptions = {
   force?: boolean;
+  recoverUploading?: boolean;
 };
 
 export type QueueProcessResult = {
@@ -97,7 +98,9 @@ export async function processQueue(
   }
 
   activeQueueRun = (async () => {
-    const recovered = await recoverInProgressUploads();
+    const recovered = options.recoverUploading
+      ? await recoverInProgressUploads()
+      : 0;
     const pendingVideos = await getPendingVideos();
     const dueVideos = options.force
       ? pendingVideos
@@ -154,6 +157,7 @@ export async function retryFailedUploads(
 export async function resumeQueuedUploads(
   processor: QueueProcessor,
 ): Promise<QueueProcessResult> {
+  const recovered = await recoverInProgressUploads();
   const [pendingVideos, failedVideos] = await Promise.all([
     getPendingVideos(),
     getFailedVideos(),
@@ -169,13 +173,22 @@ export async function resumeQueuedUploads(
       processed: 0,
       uploaded: 0,
       failed: 0,
-      recovered: 0,
+      recovered,
     };
   }
 
   if (failedVideos.length > 0) {
-    return retryFailedUploads(processor);
+    const result = await retryFailedUploads(processor);
+    return {
+      ...result,
+      recovered: result.recovered + recovered,
+    };
   }
 
-  return processQueue(processor);
+  const result = await processQueue(processor);
+
+  return {
+    ...result,
+    recovered: result.recovered + recovered,
+  };
 }

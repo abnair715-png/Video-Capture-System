@@ -25,6 +25,7 @@ import {
   captureBatteryLevelSnapshot,
   captureRecordingMetadata,
 } from '../services/metadataService';
+import { processUploadQueue } from '../services/uploadService';
 import type { CameraLens } from '../types/camera';
 
 export function CameraScreen() {
@@ -133,6 +134,8 @@ export function CameraScreen() {
             cameraDevice: device,
             batteryStart: recordingContextRef.current?.batteryStart ?? null,
           });
+
+          await processUploadQueue();
         })
         .catch(error => {
           setRecordingError(

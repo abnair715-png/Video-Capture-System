@@ -62,6 +62,8 @@ jest.mock('react-native-device-info', () => ({
 }));
 
 jest.mock('react-native-fs', () => ({
+  exists: jest.fn(async () => true),
+  readFile: jest.fn(async () => 'ZmFrZS12aWRlby1ieXRlcw=='),
   stat: jest.fn(async filepath => ({
     path: filepath,
     size: 123456,
@@ -87,13 +89,48 @@ jest.mock('react-native-fs', () => ({
   })),
 }));
 
-global.fetch = jest.fn(async () => ({
-  ok: true,
-  status: 200,
-  json: async () => ({
-    presignedUrl: 'https://example.com/presigned-url',
-  }),
-}));
+global.fetch = jest.fn(async input => {
+  const url = typeof input === 'string' ? input : input?.url ?? '';
+  const method =
+    typeof input === 'string' ? 'GET' : input?.method?.toUpperCase() ?? 'GET';
+
+  if (url.includes('/generate-presigned-url')) {
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({
+        presignedUrl: 'https://example.com/presigned-url',
+      }),
+    };
+  }
+
+  if (method === 'PUT') {
+    return {
+      ok: true,
+      status: 200,
+      text: async () => '',
+      headers: {
+        entries: function* () {
+          yield ['etag', '"mock-etag"'];
+        },
+        get: key => (String(key).toLowerCase() === 'etag' ? '"mock-etag"' : null),
+      },
+    };
+  }
+
+  return {
+    ok: true,
+    status: 200,
+    json: async () => ({}),
+    text: async () => '',
+    headers: {
+      entries: function* () {
+        return;
+      },
+      get: () => null,
+    },
+  };
+});
 
 jest.mock('@react-native-community/netinfo', () => ({
   __esModule: true,

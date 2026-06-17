@@ -9,10 +9,12 @@ import {
 } from 'react-native';
 import { appTheme } from '../config/theme';
 import {
+  deleteVideo,
   getVideosPaginated,
   updateVideo,
 } from '../db/database';
 import type { VideoRecord } from '../models/video';
+import { processUploadQueue } from '../services/uploadService';
 import * as RNFS from 'react-native-fs';
 
 const PAGE_SIZE = 10;
@@ -104,9 +106,36 @@ function formatFileSize(bytes: number) {
 }
 
 function normalizeLocalPath(localPath: string) {
-  return localPath.startsWith('file://')
+  const withoutScheme = localPath.startsWith('file://')
     ? localPath.replace(/^file:\/\//, '')
     : localPath;
+
+  try {
+    return decodeURI(withoutScheme);
+  } catch {
+    return withoutScheme;
+  }
+}
+
+async function deleteLocalFileSafely(localPath: string) {
+  const normalizedPath = normalizeLocalPath(localPath);
+
+  try {
+    const exists = await RNFS.exists(normalizedPath);
+
+    if (!exists) {
+      return;
+    }
+
+    await RNFS.unlink(normalizedPath);
+  } catch (error) {
+    console.log('[Dashboard] Local file deletion skipped/failed:', {
+      localPath,
+      normalizedPath,
+      error,
+    });
+    throw error;
+  }
 }
 
 export function DashboardScreen() {
@@ -163,6 +192,13 @@ export function DashboardScreen() {
     [],
   );
 
+  const removeVideoFromState = useCallback((videoId: string) => {
+    setState(currentState => ({
+      ...currentState,
+      items: currentState.items.filter(video => video.video_id !== videoId),
+    }));
+  }, []);
+
   const setActionState = useCallback(
     (videoId: string, patch: Partial<VideoActionState>) => {
       setActionStateById(currentState => {
@@ -188,7 +224,10 @@ export function DashboardScreen() {
   }, [loadPage]);
 
   const handleRefresh = useCallback(() => {
-    void loadPage(1, true);
+    void (async () => {
+      await processUploadQueue();
+      await loadPage(1, true);
+    })();
   }, [loadPage]);
 
   const handleLoadMore = useCallback(() => {
@@ -235,22 +274,15 @@ export function DashboardScreen() {
 
     setActionState(video.video_id, { deleting: true });
     const previousVideo = video;
-    const timestamp = new Date().toISOString();
-    const normalizedPath = normalizeLocalPath(video.local_path);
-
-    updateVideoInState(video.video_id, currentVideo => ({
-      ...currentVideo,
-      local_path: '',
-      last_error: 'Local file deleted',
-      last_attempted_at: timestamp,
-    }));
 
     try {
-      await RNFS.unlink(normalizedPath);
-      await updateVideo(video.video_id, {
-        local_path: '',
-        last_error: 'Local file deleted',
-        last_attempted_at: timestamp,
+      await deleteLocalFileSafely(video.local_path);
+      await deleteVideo(video.video_id);
+      removeVideoFromState(video.video_id);
+      setActionStateById(currentState => {
+        const nextState = { ...currentState };
+        delete nextState[video.video_id];
+        return nextState;
       });
       console.log('[Dashboard] Deleted local file:', video.local_path);
     } catch (error) {
@@ -259,7 +291,7 @@ export function DashboardScreen() {
     } finally {
       setActionState(video.video_id, { deleting: false });
     }
-  }, [setActionState, updateVideoInState]);
+  }, [removeVideoFromState, setActionState, updateVideoInState]);
 
   const renderItem = useCallback(
     ({ item }: { item: VideoRecord }) => {

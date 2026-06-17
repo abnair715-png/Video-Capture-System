@@ -1,4 +1,5 @@
 import { PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { RequestChecksumCalculation } from '@aws-sdk/middleware-flexible-checksums';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { env } from '../config/env';
 
@@ -9,6 +10,7 @@ export type GeneratePresignedUrlInput = {
 
 const s3Client = new S3Client({
   region: env.awsRegion,
+  requestChecksumCalculation: RequestChecksumCalculation.WHEN_REQUIRED,
   credentials:
     env.awsAccessKeyId && env.awsSecretAccessKey
       ? {
@@ -19,8 +21,8 @@ const s3Client = new S3Client({
       : undefined,
 });
 
-function buildObjectKey({ workerId, videoId }: GeneratePresignedUrlInput) {
-  return `uploads/${workerId}/${videoId}.mp4`;
+function buildObjectKey(input: GeneratePresignedUrlInput) {
+  return `uploads/${input.workerId}/${input.videoId}`;
 }
 
 export async function generatePresignedUrl(
@@ -29,7 +31,6 @@ export async function generatePresignedUrl(
   const command = new PutObjectCommand({
     Bucket: env.s3BucketName,
     Key: buildObjectKey(input),
-    ContentType: 'video/mp4',
   });
 
   return getSignedUrl(s3Client, command, {

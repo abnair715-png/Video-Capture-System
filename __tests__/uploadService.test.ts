@@ -54,16 +54,18 @@ describe('uploadService', () => {
       }),
     });
 
-    RNFS.uploadFiles.mockReturnValueOnce({
-      jobId: 1,
-      promise: Promise.resolve({
-        jobId: 1,
-        statusCode: 200,
+    RNFS.readFile.mockResolvedValueOnce('ZmFrZS12aWRlby1ieXRlcw==');
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      text: async () => '',
         headers: {
-          ETag: '"abc123"',
-        },
-        body: '',
-      }),
+          entries: function* () {
+            yield ['etag', '"abc123"'];
+          },
+        get: (key: string) =>
+          String(key).toLowerCase() === 'etag' ? '"abc123"' : null,
+      },
     });
 
     const { uploadVideo } = require('../src/services/uploadService');
@@ -80,11 +82,17 @@ describe('uploadService', () => {
         }),
       }),
     );
-    expect(RNFS.uploadFiles).toHaveBeenCalledWith(
+    expect(RNFS.readFile).toHaveBeenCalledWith(
+      '/storage/emulated/0/video_001.mp4',
+      'base64',
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://example.com/presigned-url',
       expect.objectContaining({
-        toUrl: 'https://example.com/presigned-url',
         method: 'PUT',
-        binaryStreamOnly: true,
+        headers: {
+          'Content-Type': 'video/mp4',
+        },
       }),
     );
     expect(database.updateVideo).toHaveBeenCalledWith(
@@ -124,7 +132,7 @@ describe('uploadService', () => {
 
     expect(database.updateVideo).not.toHaveBeenCalled();
     expect(global.fetch).not.toHaveBeenCalled();
-    expect(RNFS.uploadFiles).not.toHaveBeenCalled();
+    expect(RNFS.readFile).not.toHaveBeenCalled();
     expect(result.upload_state).toBe('uploaded');
   });
 });

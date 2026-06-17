@@ -81,15 +81,16 @@ describe('queueService', () => {
     expect(result.upload_state).toBe('pending');
   });
 
-  it('processes pending videos and recovers in-progress uploads after restart', async () => {
+  it('recovers in-progress uploads on app start and processes pending videos', async () => {
     const database = require('../src/db/database');
-    const { processQueue } = require('../src/services/queueService');
+    const { resumeQueuedUploads } = require('../src/services/queueService');
 
     database.getUploadingVideos.mockResolvedValue([sampleUploadingVideo]);
     database.getPendingVideos.mockResolvedValue([samplePendingVideo]);
+    database.getFailedVideos.mockResolvedValue([]);
 
     const processor = jest.fn(async () => undefined);
-    const result = await processQueue(processor);
+    const result = await resumeQueuedUploads(processor);
 
     expect(database.updateVideo).toHaveBeenCalledWith(
       'video_uploading',
@@ -127,6 +128,32 @@ describe('queueService', () => {
     expect(result).toEqual({
       processed: 0,
       uploaded: 0,
+      failed: 0,
+      recovered: 0,
+    });
+  });
+
+  it('does not recover uploading videos during a normal queue run', async () => {
+    const database = require('../src/db/database');
+    const { processQueue } = require('../src/services/queueService');
+
+    database.getUploadingVideos.mockResolvedValue([sampleUploadingVideo]);
+    database.getPendingVideos.mockResolvedValue([samplePendingVideo]);
+
+    const processor = jest.fn(async () => undefined);
+    const result = await processQueue(processor);
+
+    expect(database.updateVideo).not.toHaveBeenCalledWith(
+      'video_uploading',
+      expect.objectContaining({
+        upload_state: 'pending',
+        last_error: 'Recovered after app restart',
+      }),
+    );
+    expect(processor).toHaveBeenCalledWith(samplePendingVideo);
+    expect(result).toEqual({
+      processed: 1,
+      uploaded: 1,
       failed: 0,
       recovered: 0,
     });

@@ -41,7 +41,7 @@ describe('DashboardScreen', () => {
 
   it('renders the video list and wires the actions', async () => {
     const { DashboardScreen } = require('../src/screens/DashboardScreen');
-    const { updateVideo } = require('../src/db/database');
+    const { deleteVideo, updateVideo } = require('../src/db/database');
     const RNFS = require('react-native-fs');
 
     let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -98,5 +98,9 @@ describe('DashboardScreen', () => {
     });
 
     expect(RNFS.unlink).toHaveBeenCalledWith('/tmp/video_001.mp4');
+    expect(deleteVideo).toHaveBeenCalledWith('video_001');
+    expect(
+      root.findAll(node => node.props?.children === 'video_001').length,
+    ).toBe(0);
   });
 });

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { AppState } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -8,7 +9,7 @@ import { AppNavigator } from './config/navigation';
 import { AuthProvider } from './config/auth';
 import { appTheme } from './config/theme';
 import { initializeDatabase } from './db';
-import { resumeUploadQueueOnAppStart } from './services';
+import { processUploadQueue, resumeUploadQueueOnAppStart } from './services';
 
 enableScreens(true);
 
@@ -27,6 +28,15 @@ const navigationTheme = {
 function App() {
   useEffect(() => {
     let isMounted = true;
+    const queueInterval = setInterval(() => {
+      void processUploadQueue();
+    }, 5000);
+
+    const appStateSubscription = AppState.addEventListener('change', state => {
+      if (state === 'active') {
+        void processUploadQueue();
+      }
+    });
 
     const bootstrapApp = async () => {
       await initializeDatabase();
@@ -44,6 +54,8 @@ function App() {
 
     return () => {
       isMounted = false;
+      clearInterval(queueInterval);
+      appStateSubscription.remove();
     };
   }, []);
 

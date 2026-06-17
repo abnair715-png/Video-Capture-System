@@ -24,12 +24,6 @@ function normalizeFilePath(filePath: string) {
     : filePath;
 }
 
-function getFileName(filePath: string) {
-  const normalizedPath = normalizeFilePath(filePath);
-  const parts = normalizedPath.split('/');
-  return parts[parts.length - 1] ?? `${Date.now()}.mp4`;
-}
-
 function getHeaderValue(headers: UploadHeaders, headerName: string) {
   const targetHeaderName = headerName.toLowerCase();
 
@@ -45,6 +39,21 @@ function getHeaderValue(headers: UploadHeaders, headerName: string) {
 function extractEtag(headers: UploadHeaders) {
   const etag = getHeaderValue(headers, 'etag');
   return etag.replace(/^W\//, '').replace(/^"|"$/g, '');
+}
+
+function base64ToUint8Array(base64: string) {
+  const binaryString =
+    typeof globalThis.atob === 'function'
+      ? globalThis.atob(base64)
+      : Buffer.from(base64, 'base64').toString('binary');
+
+  const bytes = new Uint8Array(binaryString.length);
+
+  for (let index = 0; index < binaryString.length; index += 1) {
+    bytes[index] = binaryString.charCodeAt(index);
+  }
+
+  return bytes;
 }
 
 async function requestPresignedUrl(video: {
@@ -164,23 +173,22 @@ async function uploadFileToPresignedUrl(
   localPath: string,
 ) {
   const normalizedPath = normalizeFilePath(localPath);
-
-  return RNFS.uploadFiles({
-    toUrl: presignedUrl,
+  const base64FileContents = await RNFS.readFile(normalizedPath, 'base64');
+  const fileBytes = base64ToUint8Array(base64FileContents);
+  const response = await fetch(presignedUrl, {
     method: 'PUT',
-    binaryStreamOnly: true,
     headers: {
       'Content-Type': 'video/mp4',
     },
-    files: [
-      {
-        name: 'file',
-        filename: getFileName(normalizedPath),
-        filepath: normalizedPath,
-        filetype: 'video/mp4',
-      },
-    ],
-  }).promise;
+    body: fileBytes as unknown as never,
+  });
+  const responseBody = await response.text().catch(() => '');
+
+  return {
+    statusCode: response.status,
+    headers: Object.fromEntries(response.headers.entries()),
+    body: responseBody,
+  };
 }
 
 async function performUploadVideo(video: VideoRecord) {
@@ -197,7 +205,11 @@ async function performUploadVideo(video: VideoRecord) {
   );
 
   if (uploadResult.statusCode < 200 || uploadResult.statusCode >= 300) {
-    throw new Error(`S3 upload failed with status ${uploadResult.statusCode}`);
+    throw new Error(
+      `S3 upload failed with status ${uploadResult.statusCode}${
+        uploadResult.body ? `: ${uploadResult.body}` : ''
+      }`,
+    );
   }
 
   const etag = extractEtag(uploadResult.headers);
