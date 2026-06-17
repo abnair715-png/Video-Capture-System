@@ -4,6 +4,7 @@ import { getVideoById, updateVideo } from '../db/database';
 import type { VideoRecord } from '../models/video';
 import {
   processQueue as processUploadQueueWithProcessor,
+  resumeQueuedUploads as resumeQueueWithProcessor,
   retryFailedUploads as retryQueueFailedUploads,
   type QueueProcessResult,
 } from './queueService';
@@ -233,6 +234,10 @@ export async function processUploadQueue(): Promise<QueueProcessResult> {
 
 export async function retryFailedUploadsThroughUploadService(): Promise<QueueProcessResult> {
   return retryQueueFailedUploads(queueUploadProcessor);
+}
+
+export async function resumeUploadQueueOnAppStart(): Promise<QueueProcessResult> {
+  return resumeQueueWithProcessor(queueUploadProcessor);
 }
 
 export async function generatePresignedUrlForVideo(video: VideoRecord) {

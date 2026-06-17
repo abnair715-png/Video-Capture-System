@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { StatusBar, StyleSheet } from 'react-native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -6,6 +7,8 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './config/navigation';
 import { AuthProvider } from './config/auth';
 import { appTheme } from './config/theme';
+import { initializeDatabase } from './db';
+import { resumeUploadQueueOnAppStart } from './services';
 
 enableScreens(true);
 
@@ -22,6 +25,28 @@ const navigationTheme = {
 };
 
 function App() {
+  useEffect(() => {
+    let isMounted = true;
+
+    const bootstrapApp = async () => {
+      await initializeDatabase();
+
+      if (!isMounted) {
+        return;
+      }
+
+      await resumeUploadQueueOnAppStart();
+    };
+
+    bootstrapApp().catch(error => {
+      console.log('[App] Failed to bootstrap upload queue', error);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
   return (
     <GestureHandlerRootView style={styles.root}>
       <SafeAreaProvider>

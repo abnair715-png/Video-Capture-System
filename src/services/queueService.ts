@@ -150,3 +150,32 @@ export async function retryFailedUploads(
 
   return processQueue(processor, { force: true });
 }
+
+export async function resumeQueuedUploads(
+  processor: QueueProcessor,
+): Promise<QueueProcessResult> {
+  const [pendingVideos, failedVideos] = await Promise.all([
+    getPendingVideos(),
+    getFailedVideos(),
+  ]);
+
+  console.log('[Queue] Resuming queued uploads', {
+    pending: pendingVideos.length,
+    failed: failedVideos.length,
+  });
+
+  if (pendingVideos.length === 0 && failedVideos.length === 0) {
+    return {
+      processed: 0,
+      uploaded: 0,
+      failed: 0,
+      recovered: 0,
+    };
+  }
+
+  if (failedVideos.length > 0) {
+    return retryFailedUploads(processor);
+  }
+
+  return processQueue(processor);
+}
