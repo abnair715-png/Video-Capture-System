@@ -1,3 +1,4 @@
+import NetInfo from '@react-native-community/netinfo';
 import * as RNFS from 'react-native-fs';
 import { appConfig } from '../config/appConfig';
 import { getVideoById, updateVideo } from '../db/database';
@@ -17,6 +18,16 @@ type PresignedUrlResponse = {
 };
 
 type UploadHeaders = Record<string, string>;
+type UploadMetadata = {
+  battery_start?: number | null;
+  battery_end?: number | null;
+  gps?: {
+    latitude?: number | null;
+    longitude?: number | null;
+  };
+  network_type?: string;
+  [key: string]: unknown;
+};
 
 function normalizeFilePath(filePath: string) {
   return filePath.startsWith('file://')
@@ -54,6 +65,48 @@ function base64ToUint8Array(base64: string) {
   }
 
   return bytes;
+}
+
+async function getNetworkTypeSafe() {
+  try {
+    const state = await NetInfo.fetch();
+    return state.type || 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
+
+function parseMetadata(metadata: string): UploadMetadata {
+  if (!metadata) {
+    return {};
+  }
+
+  try {
+    const parsed = JSON.parse(metadata);
+    if (parsed && typeof parsed === 'object') {
+      return parsed as UploadMetadata;
+    }
+  } catch {
+    // Ignore malformed metadata and preserve upload flow.
+  }
+
+  return {};
+}
+
+async function refreshUploadMetadata(video: VideoRecord) {
+  const networkType = await getNetworkTypeSafe();
+  const nextMetadata = JSON.stringify({
+    ...parseMetadata(video.metadata),
+    network_type: networkType,
+  });
+
+  if (nextMetadata !== video.metadata) {
+    await updateVideo(video.video_id, {
+      metadata: nextMetadata,
+    });
+  }
+
+  return nextMetadata;
 }
 
 async function requestPresignedUrl(video: {
@@ -173,6 +226,11 @@ async function uploadFileToPresignedUrl(
   localPath: string,
 ) {
   const normalizedPath = normalizeFilePath(localPath);
+
+  if (!normalizedPath) {
+    throw new Error('Local file path is missing.');
+  }
+
   const base64FileContents = await RNFS.readFile(normalizedPath, 'base64');
   const fileBytes = base64ToUint8Array(base64FileContents);
   const response = await fetch(presignedUrl, {
@@ -198,6 +256,7 @@ async function performUploadVideo(video: VideoRecord) {
     return claimedVideo;
   }
 
+  const metadata = await refreshUploadMetadata(claimedVideo);
   const presignedUrl = await requestPresignedUrl(claimedVideo);
   const uploadResult = await uploadFileToPresignedUrl(
     presignedUrl,
@@ -220,6 +279,7 @@ async function performUploadVideo(video: VideoRecord) {
   const updatedVideo = await getVideoById(claimedVideo.video_id);
   return updatedVideo ?? {
     ...claimedVideo,
+    metadata,
     upload_state: 'uploaded',
     etag,
     last_attempted_at: lastAttemptedAt,

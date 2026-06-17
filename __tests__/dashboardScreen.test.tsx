@@ -31,7 +31,6 @@ jest.mock('../src/db/database', () => ({
     hasNextPage: false,
   })),
   updateVideo: jest.fn(async () => undefined),
-  deleteVideo: jest.fn(async () => undefined),
 }));
 
 describe('DashboardScreen', () => {
@@ -41,7 +40,7 @@ describe('DashboardScreen', () => {
 
   it('renders the video list and wires the actions', async () => {
     const { DashboardScreen } = require('../src/screens/DashboardScreen');
-    const { deleteVideo, updateVideo } = require('../src/db/database');
+    const { updateVideo } = require('../src/db/database');
     const RNFS = require('react-native-fs');
 
     let renderer: ReactTestRenderer.ReactTestRenderer;
@@ -98,9 +97,11 @@ describe('DashboardScreen', () => {
     });
 
     expect(RNFS.unlink).toHaveBeenCalledWith('/tmp/video_001.mp4');
-    expect(deleteVideo).toHaveBeenCalledWith('video_001');
-    expect(
-      root.findAll(node => node.props?.children === 'video_001').length,
-    ).toBe(0);
+    expect(updateVideo).toHaveBeenCalledWith('video_001', {
+      local_path: '',
+      upload_state: 'failed',
+      last_error: 'Local file deleted',
+      last_attempted_at: expect.any(String),
+    });
   });
 });

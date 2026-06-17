@@ -3,8 +3,14 @@ import type {
   Recorder,
   RecordingFinishedReason,
 } from 'react-native-vision-camera';
+import { appConfig } from '../config/appConfig';
 
-export const MAX_RECORDING_DURATION_SECONDS = 60;
+export const MAX_RECORDING_DURATION_SECONDS =
+  appConfig.maxRecordingDurationSeconds;
+
+export type StartRecordingOptions = {
+  maxDurationSeconds?: number;
+};
 
 export type CameraRecordingSession = {
   videoId: string;
@@ -66,11 +72,14 @@ function createFilePathPromise() {
 
 export async function startRecording(
   videoOutput: CameraVideoOutput,
+  options: StartRecordingOptions = {},
 ): Promise<CameraRecordingSession> {
   const videoId = createVideoId();
   const startedAt = new Date().toISOString();
+  const maxDurationSeconds =
+    options.maxDurationSeconds ?? appConfig.maxRecordingDurationSeconds;
   const recorder = await videoOutput.createRecorder({
-    maxDuration: MAX_RECORDING_DURATION_SECONDS,
+    maxDuration: maxDurationSeconds,
   });
   const { filePathPromise, resolveFilePath, rejectFilePath } =
     createFilePathPromise();

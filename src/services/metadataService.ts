@@ -1,5 +1,4 @@
 import { PermissionsAndroid, Platform } from 'react-native';
-import NetInfo from '@react-native-community/netinfo';
 import DeviceInfo from 'react-native-device-info';
 import * as RNFS from 'react-native-fs';
 import Geolocation from 'react-native-geolocation-service';
@@ -74,19 +73,15 @@ function selectLargestResolution(
 }
 
 function resolveFpsTier(fps: number) {
-  if (fps >= 90) {
-    return 'ultra';
+  if (fps < 20) {
+    return 'low';
   }
 
-  if (fps >= 60) {
-    return 'high';
-  }
-
-  if (fps >= 30) {
+  if (fps <= 30) {
     return 'standard';
   }
 
-  return 'low';
+  return 'high';
 }
 
 export function resolveRecordingProfile(
@@ -123,15 +118,6 @@ async function getBatteryLevelSafe() {
 
 export async function captureBatteryLevelSnapshot() {
   return getBatteryLevelSafe();
-}
-
-async function getNetworkTypeSafe() {
-  try {
-    const state = await NetInfo.fetch();
-    return state.type;
-  } catch {
-    return 'unknown';
-  }
 }
 
 async function requestLocationPermission() {
@@ -206,13 +192,12 @@ function buildBonusMetadata(
     latitude: number | null;
     longitude: number | null;
   },
-  networkType: string,
 ): BonusMetadata {
   return {
     battery_start: input.batteryStart ?? null,
     battery_end: batteryEnd,
     gps,
-    network_type: networkType,
+    network_type: 'unknown',
   };
 }
 
@@ -223,17 +208,16 @@ export async function captureRecordingMetadata(
   const profile = resolveRecordingProfile(
     input.cameraDevice as CameraDeviceSnapshot | null | undefined,
   );
-  const [fileSizeBytes, batteryEnd, networkType, gps, deviceModel, osVersion] =
+  const [fileSizeBytes, batteryEnd, gps, deviceModel, osVersion] =
     await Promise.all([
       getFileSizeBytes(input.localPath),
       getBatteryLevelSafe(),
-      getNetworkTypeSafe(),
       getGpsCoordinatesSafe(),
       Promise.resolve(DeviceInfo.getModel()),
       Promise.resolve(DeviceInfo.getSystemVersion()),
     ]);
 
-  const bonusMetadata = buildBonusMetadata(input, batteryEnd, gps, networkType);
+  const bonusMetadata = buildBonusMetadata(input, batteryEnd, gps);
   const metadata = JSON.stringify(bonusMetadata);
 
   const video: VideoRecord = {

@@ -86,6 +86,17 @@ describe('uploadService', () => {
       '/storage/emulated/0/video_001.mp4',
       'base64',
     );
+    const metadataUpdateCall = database.updateVideo.mock.calls.find(
+      ([videoId, updates]: [string, Record<string, unknown>]) =>
+        videoId === 'video_001' && typeof updates.metadata === 'string',
+    );
+
+    expect(metadataUpdateCall).toBeDefined();
+    expect(
+      JSON.parse(metadataUpdateCall?.[1].metadata as string),
+    ).toMatchObject({
+      network_type: 'wifi',
+    });
     expect(fetchMock).toHaveBeenCalledWith(
       'https://example.com/presigned-url',
       expect.objectContaining({

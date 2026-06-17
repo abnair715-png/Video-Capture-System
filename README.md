@@ -1,14 +1,46 @@
-This is an Android-focused [React Native](https://reactnative.dev) project bootstrapped with [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# VideoCaptureSystem
 
-## What’s included
+Android-only React Native CLI app for secure video capture, local metadata storage, resilient upload queuing, and direct S3 delivery through presigned URLs.
 
-- TypeScript app shell
-- React Navigation with native stack
-- Android API 29+ baseline
-- Clean `src/` folder structure
-- Service-first layout for future business logic
+## What This Repo Contains
 
-## Folder structure
+- `src/`: Android app written in TypeScript
+- `backend/`: Express + TypeScript presign service
+- `android/`: native Android project configured for API 29+
+
+## Architecture
+
+```mermaid
+flowchart LR
+  U[User] --> L[LoginScreen]
+  L --> A[AuthContext]
+  A --> H[HomeScreen]
+  H --> C[CameraScreen]
+  H --> D[DashboardScreen]
+
+  C --> MS[cameraService]
+  C --> M[metadataService]
+  M --> SQ[(SQLite videos table)]
+  D --> SQ
+
+  SQ --> Q[queueService]
+  Q --> US[uploadService]
+  US --> B[Backend /generate-presigned-url]
+  B --> S3[(Amazon S3)]
+  US --> SQ
+```
+
+## Core Flow
+
+1. User logs in with the mock credentials.
+2. CameraScreen records video and saves the file locally.
+3. MetadataService captures file size, device, battery, GPS, and network details.
+4. The recording is inserted into SQLite with `upload_state = pending`.
+5. QueueService resumes pending uploads on app start and during foreground activity.
+6. UploadService requests a presigned URL from the backend and uploads the file directly to S3.
+7. DashboardScreen shows the current status and lets the user retry or delete.
+
+## Folder Structure
 
 ```text
 src/
@@ -22,19 +54,39 @@ src/
   services/
   types/
   utils/
+backend/
+  src/
+    controllers/
+    routes/
+    services/
+    config/
 ```
 
-## Install dependencies
+## Prerequisites
 
-From `VideoCaptureSystem/`:
+- Node.js 22+
+- Android SDK with API 29 or newer
+- Android emulator or physical Android device
+- Java 17 compatible toolchain
+
+## Install Dependencies
+
+From the app root:
 
 ```sh
 npm install
 ```
 
+From the backend folder:
+
+```sh
+cd backend
+npm install
+```
+
 ## Run Android
 
-In one terminal, start Metro:
+Start Metro:
 
 ```sh
 npm start
@@ -46,14 +98,64 @@ In a second terminal, build and launch Android:
 npm run android
 ```
 
+## Run Backend
+
+In the backend folder:
+
+```sh
+npm run dev
+```
+
+For production-style execution:
+
+```sh
+npm run build
+npm start
+```
+
+## Environment
+
+Backend `backend/.env`:
+
+```env
+PORT=3000
+AWS_REGION=your-region-name
+S3_BUCKET_NAME=your-bucket-name
+PRESIGNED_URL_EXPIRES_IN_SECONDS=900
+AWS_ACCESS_KEY_ID=your-access-key
+AWS_SECRET_ACCESS_KEY=your-secret-key
+AWS_SESSION_TOKEN=optional-session-token
+```
+
+Android emulator networking uses `http://10.0.2.2:3000` for the backend base URL. On a physical device, use your machine's LAN IP instead.
+
+## Testing
+
+Run app tests:
+
+```sh
+npm test
+```
+
+Run TypeScript checks:
+
+```sh
+npx tsc --noEmit
+```
+
+Backend build:
+
+```sh
+cd backend
+npm run build
+```
+
 ## Notes
 
-- React Navigation is wired through `src/config/navigation/AppNavigator.tsx`
-- `react-native-gesture-handler` is loaded from `index.js`
-- `react-native-screens` is enabled in `src/App.tsx`
-- The Android manifest opts out of predictive back for compatibility with the navigation stack
-- Mock auth credentials: `admin@test.com` / `123456`
-- Successful login stores a secure session with `react-native-encrypted-storage`
-- Camera recording uses `react-native-vision-camera`
-- Android requires `android.permission.CAMERA`
-- Recordings stop automatically at 60 seconds and return a local file path
+- The app is intentionally Android-only.
+- `react-native-gesture-handler`, `react-native-screens`, and `react-native-safe-area-context` are already wired in.
+- Mock auth uses `admin@test.com` / `123456`.
+- Session state is stored securely with `react-native-encrypted-storage`.
+- Camera recordings stop automatically at 60 seconds.
+- Uploads are queued locally in SQLite and retried with exponential backoff.
+- See `INFRA.md` for the database schema, retry design, S3 layout, IAM policy, and scaling notes.

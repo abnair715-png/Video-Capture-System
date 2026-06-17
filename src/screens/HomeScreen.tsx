@@ -2,22 +2,22 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { AppScreen } from '../components';
 import { ROUTES } from '../constants/routes';
 import { useAuth } from '../config/auth';
-import { getAllVideos, getVideoCount } from '../db/database';
+// import { getAllVideos, getVideoCount } from '../db/database';
 import { appTheme } from '../config/theme';
 import type { AppScreenProps } from '../types/navigation';
 
 export function HomeScreen({ navigation }: AppScreenProps<'Home'>) {
   const { session, logout } = useAuth();
 
-  const handleDebugDatabase = async () => {
-    const [count, videos] = await Promise.all([
-      getVideoCount(),
-      getAllVideos(),
-    ]);
+  // const handleDebugDatabase = async () => {
+  //   const [count, videos] = await Promise.all([
+  //     getVideoCount(),
+  //     getAllVideos(),
+  //   ]);
 
-    console.log('[SQLite Debug] Debug button count:', count);
-    console.log('[SQLite Debug] Debug button rows:', videos);
-  };
+  //   console.log('[SQLite Debug] Debug button count:', count);
+  //   console.log('[SQLite Debug] Debug button rows:', videos);
+  // };
 
   return (
     <AppScreen
@@ -40,9 +40,9 @@ export function HomeScreen({ navigation }: AppScreenProps<'Home'>) {
         >
           <Text style={styles.secondaryButtonText}>Open Dashboard</Text>
         </Pressable>
-        <Pressable style={styles.debugButton} onPress={handleDebugDatabase}>
+        {/* <Pressable style={styles.debugButton} onPress={handleDebugDatabase}>
           <Text style={styles.debugButtonText}>Debug Database</Text>
-        </Pressable>
+        </Pressable> */}
         <Pressable style={styles.logoutButton} onPress={logout}>
           <Text style={styles.logoutText}>Logout</Text>
         </Pressable>

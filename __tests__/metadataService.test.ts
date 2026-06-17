@@ -34,6 +34,24 @@ describe('metadataService', () => {
       fpsTier: 'high',
       resolution: '1920x1080',
     });
+
+    expect(
+      resolveRecordingProfile({
+        supportedFPSRanges: [{ min: 15, max: 15 }],
+        getSupportedResolutions: () => [{ width: 1280, height: 720 }],
+      }),
+    ).toMatchObject({
+      fpsTier: 'low',
+    });
+
+    expect(
+      resolveRecordingProfile({
+        supportedFPSRanges: [{ min: 31, max: 31 }],
+        getSupportedResolutions: () => [{ width: 1280, height: 720 }],
+      }),
+    ).toMatchObject({
+      fpsTier: 'high',
+    });
   });
 
   it('captures metadata and inserts a sqlite row', async () => {
@@ -82,7 +100,7 @@ describe('metadataService', () => {
         latitude: null,
         longitude: null,
       },
-      network_type: 'wifi',
+      network_type: 'unknown',
     });
   });
 });

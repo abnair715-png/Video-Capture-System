@@ -9,12 +9,12 @@ import {
 } from 'react-native';
 import { appTheme } from '../config/theme';
 import {
-  deleteVideo,
+  getVideoById,
   getVideosPaginated,
   updateVideo,
 } from '../db/database';
 import type { VideoRecord } from '../models/video';
-import { processUploadQueue } from '../services/uploadService';
+import { processUploadQueue, uploadVideo } from '../services/uploadService';
 import * as RNFS from 'react-native-fs';
 
 const PAGE_SIZE = 10;
@@ -192,13 +192,6 @@ export function DashboardScreen() {
     [],
   );
 
-  const removeVideoFromState = useCallback((videoId: string) => {
-    setState(currentState => ({
-      ...currentState,
-      items: currentState.items.filter(video => video.video_id !== videoId),
-    }));
-  }, []);
-
   const setActionState = useCallback(
     (videoId: string, patch: Partial<VideoActionState>) => {
       setActionStateById(currentState => {
@@ -239,28 +232,33 @@ export function DashboardScreen() {
   }, [loadPage, state.hasNextPage, state.isInitialLoading, state.isLoadingMore, state.page]);
 
   const handleRetryUpload = useCallback(async (video: VideoRecord) => {
+    const normalizedState = normalizeState(video.upload_state);
+    const hasLocalFile = video.local_path.trim().length > 0;
+
+    if (normalizedState !== 'failed' || !hasLocalFile) {
+      return;
+    }
+
     setActionState(video.video_id, { retrying: true });
-    const previousVideo = video;
     const lastAttemptedAt = new Date().toISOString();
 
     updateVideoInState(video.video_id, currentVideo => ({
       ...currentVideo,
-      upload_state: 'pending',
+      upload_state: 'uploading',
       attempt_count: currentVideo.attempt_count + 1,
       last_attempted_at: lastAttemptedAt,
       last_error: '',
     }));
 
     try {
-      await updateVideo(video.video_id, {
-        upload_state: 'pending',
-        attempt_count: video.attempt_count + 1,
-        last_attempted_at: lastAttemptedAt,
-        last_error: '',
-      });
+      const updatedVideo = await uploadVideo(video);
+      updateVideoInState(video.video_id, () => updatedVideo);
       console.log('[Dashboard] Retry upload triggered for:', video.video_id);
     } catch (error) {
-      updateVideoInState(video.video_id, () => previousVideo);
+      const latestVideo = await getVideoById(video.video_id);
+      if (latestVideo) {
+        updateVideoInState(video.video_id, () => latestVideo);
+      }
       console.log('[Dashboard] Retry upload failed for:', video.video_id, error);
     } finally {
       setActionState(video.video_id, { retrying: false });
@@ -274,16 +272,25 @@ export function DashboardScreen() {
 
     setActionState(video.video_id, { deleting: true });
     const previousVideo = video;
+    const lastAttemptedAt = new Date().toISOString();
+    const normalizedState = normalizeState(video.upload_state);
+    const nextUploadState = normalizedState === 'uploaded' ? 'uploaded' : 'failed';
 
     try {
       await deleteLocalFileSafely(video.local_path);
-      await deleteVideo(video.video_id);
-      removeVideoFromState(video.video_id);
-      setActionStateById(currentState => {
-        const nextState = { ...currentState };
-        delete nextState[video.video_id];
-        return nextState;
+      await updateVideo(video.video_id, {
+        local_path: '',
+        upload_state: nextUploadState,
+        last_error: 'Local file deleted',
+        last_attempted_at: lastAttemptedAt,
       });
+      updateVideoInState(video.video_id, currentVideo => ({
+        ...currentVideo,
+        local_path: '',
+        upload_state: nextUploadState,
+        last_error: 'Local file deleted',
+        last_attempted_at: lastAttemptedAt,
+      }));
       console.log('[Dashboard] Deleted local file:', video.local_path);
     } catch (error) {
       updateVideoInState(video.video_id, () => previousVideo);
@@ -291,7 +298,7 @@ export function DashboardScreen() {
     } finally {
       setActionState(video.video_id, { deleting: false });
     }
-  }, [removeVideoFromState, setActionState, updateVideoInState]);
+  }, [setActionState, updateVideoInState]);
 
   const renderItem = useCallback(
     ({ item }: { item: VideoRecord }) => {
@@ -303,6 +310,7 @@ export function DashboardScreen() {
         deleting: false,
       };
       const hasLocalFile = item.local_path.trim().length > 0;
+      const canRetry = normalizedState === 'failed' && hasLocalFile;
 
       return (
         <View style={styles.card}>
@@ -354,7 +362,7 @@ export function DashboardScreen() {
                   ? styles.disabledButton
                   : null,
               ]}
-              disabled={actionState.retrying || actionState.deleting}
+              disabled={actionState.retrying || actionState.deleting || !canRetry}
               onPress={() => void handleRetryUpload(item)}>
               <Text style={styles.retryButtonText}>
                 {actionState.retrying ? 'Retrying...' : 'Retry upload'}

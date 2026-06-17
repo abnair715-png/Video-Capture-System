@@ -14,6 +14,7 @@ import {
   useVideoOutput,
 } from 'react-native-vision-camera';
 import { useAuth } from '../config/auth';
+import { appConfig } from '../config/appConfig';
 import { appTheme } from '../config/theme';
 import {
   MAX_RECORDING_DURATION_SECONDS,
@@ -113,7 +114,9 @@ export function CameraScreen() {
       }
 
       const batteryStart = await captureBatteryLevelSnapshot();
-      const session = await startRecording(videoOutput);
+      const session = await startRecording(videoOutput, {
+        maxDurationSeconds: appConfig.maxRecordingDurationSeconds,
+      });
       sessionRef.current = session;
       setRecordingSession(session);
       setCurrentVideoId(session.videoId);
@@ -165,7 +168,10 @@ export function CameraScreen() {
     await cameraPermission.requestPermission();
   }, [cameraPermission]);
 
-  const timerText = useMemo(() => formatDuration(elapsedSeconds), [elapsedSeconds]);
+  const timerText = useMemo(
+    () => formatDuration(elapsedSeconds),
+    [elapsedSeconds],
+  );
 
   return (
     <View style={styles.container}>
@@ -191,17 +197,24 @@ export function CameraScreen() {
 
       <View style={styles.infoCard}>
         <Text style={styles.title}>Recording</Text>
-        <Text style={styles.timer}>{timerText} / 01:00</Text>
+        <Text style={styles.timer}>
+          {timerText} / {formatDuration(appConfig.maxRecordingDurationSeconds)}
+        </Text>
         <Text style={styles.meta}>Video ID: {currentVideoId || '—'}</Text>
         <Text style={styles.meta}>
           Last file: {recordedFilePath || 'No recording yet'}
         </Text>
-        {recordingError ? <Text style={styles.error}>{recordingError}</Text> : null}
+        {recordingError ? (
+          <Text style={styles.error}>{recordingError}</Text>
+        ) : null}
       </View>
 
       <View style={styles.controls}>
         {!cameraPermission.hasPermission ? (
-          <Pressable style={styles.primaryButton} onPress={handleRequestPermission}>
+          <Pressable
+            style={styles.primaryButton}
+            onPress={handleRequestPermission}
+          >
             <Text style={styles.buttonText}>Grant Camera Permission</Text>
           </Pressable>
         ) : (
@@ -212,7 +225,8 @@ export function CameraScreen() {
                 isRecording || isStarting ? styles.disabledButton : null,
               ]}
               disabled={isRecording || isStarting}
-              onPress={handleToggleLens}>
+              onPress={handleToggleLens}
+            >
               <Text style={styles.buttonText}>
                 Switch to {lens === 'back' ? 'Front' : 'Rear'}
               </Text>
@@ -224,7 +238,8 @@ export function CameraScreen() {
                 isStarting ? styles.disabledButton : null,
               ]}
               disabled={isStarting}
-              onPress={isRecording ? handleStopRecording : handleStartRecording}>
+              onPress={isRecording ? handleStopRecording : handleStartRecording}
+            >
               {isStarting ? (
                 <ActivityIndicator color="#0F172A" />
               ) : (

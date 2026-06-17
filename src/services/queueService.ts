@@ -47,6 +47,32 @@ async function recoverInProgressUploads() {
   return uploadingVideos.length;
 }
 
+async function processQueuedVideos(
+  queuedVideos: VideoRecord[],
+  processor: QueueProcessor,
+) {
+  let processed = 0;
+  let uploaded = 0;
+  let failed = 0;
+
+  for (const queuedVideo of queuedVideos) {
+    processed += 1;
+
+    try {
+      await processor(queuedVideo);
+      uploaded += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return {
+    processed,
+    uploaded,
+    failed,
+  };
+}
+
 export async function enqueueVideo(videoId: string) {
   const video = await getVideoById(videoId);
 
@@ -105,21 +131,10 @@ export async function processQueue(
     const dueVideos = options.force
       ? pendingVideos
       : pendingVideos.filter(video => isVideoRetryDue(video));
-
-    let processed = 0;
-    let uploaded = 0;
-    let failed = 0;
-
-    for (const pendingVideo of dueVideos) {
-      processed += 1;
-
-      try {
-        await processor(pendingVideo);
-        uploaded += 1;
-      } catch {
-        failed += 1;
-      }
-    }
+    const { processed, uploaded, failed } = await processQueuedVideos(
+      dueVideos,
+      processor,
+    );
 
     return {
       processed,
@@ -176,19 +191,17 @@ export async function resumeQueuedUploads(
       recovered,
     };
   }
-
-  if (failedVideos.length > 0) {
-    const result = await retryFailedUploads(processor);
-    return {
-      ...result,
-      recovered: result.recovered + recovered,
-    };
-  }
-
-  const result = await processQueue(processor);
+  const duePendingVideos = pendingVideos.filter(video => isVideoRetryDue(video));
+  const dueFailedVideos = failedVideos.filter(video => isVideoRetryDue(video));
+  const { processed, uploaded, failed } = await processQueuedVideos(
+    [...duePendingVideos, ...dueFailedVideos],
+    processor,
+  );
 
   return {
-    ...result,
-    recovered: result.recovered + recovered,
+    processed,
+    uploaded,
+    failed,
+    recovered,
   };
 }
