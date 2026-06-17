@@ -8,3 +8,4 @@ export * from './authService';
 export * from './cameraService';
 export * from './metadataService';
 export * from './queueService';
+export * from './uploadService';

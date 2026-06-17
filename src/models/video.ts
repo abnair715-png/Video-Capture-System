@@ -11,6 +11,7 @@ export type VideoRecord = {
   os_version: string;
   resolution: string;
   local_path: string;
+  etag: string;
   metadata: string;
   upload_state: string;
   attempt_count: number;

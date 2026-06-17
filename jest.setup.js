@@ -74,6 +74,25 @@ jest.mock('react-native-fs', () => ({
     isDirectory: () => false,
   })),
   unlink: jest.fn(async () => undefined),
+  uploadFiles: jest.fn(() => ({
+    jobId: 1,
+    promise: Promise.resolve({
+      jobId: 1,
+      statusCode: 200,
+      headers: {
+        ETag: '"mock-etag"',
+      },
+      body: '',
+    }),
+  })),
+}));
+
+global.fetch = jest.fn(async () => ({
+  ok: true,
+  status: 200,
+  json: async () => ({
+    presignedUrl: 'https://example.com/presigned-url',
+  }),
 }));
 
 jest.mock('@react-native-community/netinfo', () => ({
@@ -192,6 +211,29 @@ jest.mock('react-native-quick-sqlite', () => {
 
   const connection = {
     executeAsync: jest.fn(async query => {
+      if (String(query).includes('PRAGMA table_info')) {
+        return createResult([
+          { name: 'video_id' },
+          { name: 'worker_id' },
+          { name: 'started_at' },
+          { name: 'ended_at' },
+          { name: 'duration_ms' },
+          { name: 'file_size_bytes' },
+          { name: 'fps' },
+          { name: 'fps_tier' },
+          { name: 'device_model' },
+          { name: 'os_version' },
+          { name: 'resolution' },
+          { name: 'local_path' },
+          { name: 'etag' },
+          { name: 'metadata' },
+          { name: 'upload_state' },
+          { name: 'attempt_count' },
+          { name: 'last_error' },
+          { name: 'last_attempted_at' },
+        ]);
+      }
+
       if (String(query).includes('COUNT(*)')) {
         return createResult([{ count: 0 }]);
       }

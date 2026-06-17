@@ -27,6 +27,7 @@ const createVideosTableSql = `
     os_version TEXT,
     resolution TEXT,
     local_path TEXT,
+    etag TEXT,
     metadata TEXT,
     upload_state TEXT,
     attempt_count INTEGER,
@@ -49,6 +50,26 @@ function ensurePositiveInteger(value: number, fallback: number) {
   return Number.isFinite(value) && value > 0 ? Math.floor(value) : fallback;
 }
 
+async function ensureColumnExists(
+  columnName: string,
+  columnDefinition: string,
+) {
+  const result = await getConnection().executeAsync(
+    `PRAGMA table_info(${TABLE_NAME})`,
+  );
+  const existingColumns = new Set(
+    (result.rows?._array ?? []).map(
+      row => String((row as Record<string, unknown>).name ?? ''),
+    ),
+  );
+
+  if (!existingColumns.has(columnName)) {
+    await getConnection().executeAsync(
+      `ALTER TABLE ${TABLE_NAME} ADD COLUMN ${columnDefinition}`,
+    );
+  }
+}
+
 async function ensureDatabaseReady() {
   if (initializationPromise == null) {
     initializationPromise = getConnection()
@@ -56,6 +77,9 @@ async function ensureDatabaseReady() {
         [createVideosTableSql],
         ...createIndexesSql.map(statement => [statement] as [string]),
       ])
+      .then(async () => {
+        await ensureColumnExists('etag', 'etag TEXT');
+      })
       .then(() => undefined);
   }
 
@@ -84,6 +108,7 @@ function buildVideoRow(video: VideoRecord) {
     video.os_version,
     video.resolution,
     video.local_path,
+    video.etag,
     video.metadata,
     video.upload_state,
     video.attempt_count,
@@ -106,6 +131,7 @@ function mapRowToVideo(row: Record<string, unknown>): VideoRecord {
     os_version: String(row.os_version ?? ''),
     resolution: String(row.resolution ?? ''),
     local_path: String(row.local_path ?? ''),
+    etag: String(row.etag ?? ''),
     metadata: String(row.metadata ?? ''),
     upload_state: String(row.upload_state ?? ''),
     attempt_count: Number(row.attempt_count ?? 0),
@@ -167,12 +193,13 @@ export async function insertVideo(video: VideoRecord) {
       os_version,
       resolution,
       local_path,
+      etag,
       metadata,
       upload_state,
       attempt_count,
       last_error,
       last_attempted_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     buildVideoRow(video),
   );
 }

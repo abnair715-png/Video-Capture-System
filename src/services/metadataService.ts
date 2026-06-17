@@ -249,6 +249,7 @@ export async function captureRecordingMetadata(
     os_version: osVersion,
     resolution: profile.resolution,
     local_path: input.localPath,
+    etag: '',
     metadata,
     upload_state: 'pending',
     attempt_count: 0,

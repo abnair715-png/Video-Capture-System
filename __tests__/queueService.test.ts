@@ -11,6 +11,7 @@ const samplePendingVideo = {
   os_version: '14',
   resolution: '1920x1080',
   local_path: '/storage/emulated/0/video_pending.mp4',
+  etag: '',
   metadata: '{}',
   upload_state: 'pending',
   attempt_count: 0,

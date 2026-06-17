@@ -14,6 +14,7 @@ const mockSampleVideo = {
   os_version: '14',
   resolution: '1920x1080',
   local_path: 'file:///tmp/video_001.mp4',
+  etag: '',
   metadata: '{}',
   upload_state: 'failed',
   attempt_count: 0,

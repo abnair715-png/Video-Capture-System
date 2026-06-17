@@ -13,6 +13,7 @@ const sampleVideo: VideoRecord = {
   os_version: 'Android 14',
   resolution: '1920x1080',
   local_path: '/storage/emulated/0/video_001.mp4',
+  etag: '',
   metadata: '{"source":"camera"}',
   upload_state: 'pending',
   attempt_count: 0,
@@ -77,6 +78,7 @@ test('inserts a video row', async () => {
       'Android 14',
       '1920x1080',
       '/storage/emulated/0/video_001.mp4',
+      '',
       '{"source":"camera"}',
       'pending',
       0,
@@ -121,25 +123,29 @@ test('loads pending, failed, paginated, and delete queries', async () => {
   expect(connection.executeBatchAsync).toHaveBeenCalledTimes(1);
   expect(connection.executeAsync).toHaveBeenNthCalledWith(
     1,
-    'SELECT * FROM videos WHERE upload_state = ? ORDER BY started_at DESC',
-    ['pending'],
+    'PRAGMA table_info(videos)',
   );
   expect(connection.executeAsync).toHaveBeenNthCalledWith(
     2,
     'SELECT * FROM videos WHERE upload_state = ? ORDER BY started_at DESC',
-    ['failed'],
+    ['pending'],
   );
   expect(connection.executeAsync).toHaveBeenNthCalledWith(
     3,
+    'SELECT * FROM videos WHERE upload_state = ? ORDER BY started_at DESC',
+    ['failed'],
+  );
+  expect(connection.executeAsync).toHaveBeenNthCalledWith(
+    4,
     'SELECT * FROM videos ORDER BY started_at DESC LIMIT ? OFFSET ?',
     [10, 10],
   );
   expect(connection.executeAsync).toHaveBeenNthCalledWith(
-    4,
+    5,
     'SELECT COUNT(*) AS count FROM videos',
   );
   expect(connection.executeAsync).toHaveBeenNthCalledWith(
-    5,
+    6,
     'DELETE FROM videos WHERE video_id = ?',
     ['video_001'],
   );
